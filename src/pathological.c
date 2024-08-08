@@ -67,24 +67,11 @@ static ngx_int_t ngx_http_malformed_headers_handler(ngx_http_request_t *r) {
     }
 
     r->headers_out.status = NGX_HTTP_OK;
-    ngx_str_set(&r->headers_out.content_type, "text/plain");
-
-    ngx_buf_t *b;
-    b = ngx_pcalloc(r->pool, sizeof(ngx_buf_t));
-    if (b == NULL) {
-        return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    b->pos = (u_char *) "Check the response headers for malformed headers.\n";
-    b->last = b->pos + strlen((char *) b->pos);
-    b->memory = 1;
-    b->last_buf = 1;
-
-    r->headers_out.content_length_n = b->last - b->pos;
+    r->headers_out.content_length_n = 0;
 
     ngx_http_send_header(r);
 
-    return ngx_http_output_filter(r, &(ngx_chain_t){.buf = b});
+    return ngx_http_output_filter(r, &(ngx_chain_t){.buf = &(ngx_buf_t){.last_buf = 1}});
 }
 
 static char* ngx_http_malformed_headers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
