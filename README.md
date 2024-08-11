@@ -51,9 +51,18 @@ Start nginx:
 $ nginx -p nginx -e stderr
 ```
 
-### Malformed headers
+### Setting status
 
-By setting a value on the `malformed-headers` query string parameter, you can elicit bad header responses. The allowed values are:
+By setting an integer on the `status` query string parameter, you can set a custom status code.
+
+```
+$ curl 'localhost:8080/pathological?status=204' -i
+HTTP/1.1 204 No Content
+```
+
+### Malformed header
+
+By setting a value on the `malformed-header` query string parameter, you can elicit responses with malformed headers. The allowed values are:
 
 - spaces-in-header-name
 - trailing-whitespace

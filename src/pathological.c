@@ -15,58 +15,72 @@ static void set_malformed_header(ngx_http_request_t *r, const char *header_name,
     h->value.data = (u_char *) header_value;
 }
 
-static ngx_int_t ngx_http_malformed_headers_handler(ngx_http_request_t *r) {
-    u_char qs_param[] = "malformed-header";
+static ngx_int_t pathological_handler(ngx_http_request_t *r) {
+    u_char status_qs[] = "status";
+    ngx_str_t status_prm;
 
-    // if the qs param is not present, decline
-    ngx_str_t value;
-    if (ngx_http_arg(r, qs_param, sizeof(qs_param) - 1, &value) != NGX_OK) {
-        return NGX_DECLINED;
-    }
-
-    // compare the querystring to all cases
-    if (ngx_strncmp(value.data, "spaces-in-header-name", value.len) == 0) {
-        set_malformed_header(r, "Spaces In Header Name", "This header name contains spaces");
-
-    } else if (ngx_strncmp(value.data, "trailing-whitespace", value.len) == 0) {
-        set_malformed_header(r, "TrailingWhitespace ", "This header has trailing whitespace");
-
-    } else if (ngx_strncmp(value.data, "header-injection", value.len) == 0) {
-        set_malformed_header(r, "HeaderInjection\r\nInjected-Header", "This header contains an injection");
-
-    } else if (ngx_strncmp(value.data, "non-printable-chars", value.len) == 0) {
-        char header_value[] = "NonPrintableChars\x01\x02";
-        set_malformed_header(r, "NonPrintableChars", header_value);
-
-    } else if (ngx_strncmp(value.data, "missing-value", value.len) == 0) {
-        set_malformed_header(r, "MissingValue", "");
-
-    } else if (ngx_strncmp(value.data, "multiple-colons", value.len) == 0) {
-        set_malformed_header(r, "MultipleColons", "Value1: Value2");
-
-    } else if (ngx_strncmp(value.data, "invalid-encoding", value.len) == 0) {
-        char header_value[] = "InvalidEncoding\xc3\x28";
-        set_malformed_header(r, "InvalidEncoding", header_value);
-
-    } else if (ngx_strncmp(value.data, "oversized-headers", value.len) == 0) {
-        char header_value[9000];
-        memset(header_value, 'X', 8999);
-        header_value[8999] = '\0';
-        set_malformed_header(r, "OversizedHeader", header_value);
-
-    } else if (ngx_strncmp(value.data, "duplicate-headers", value.len) == 0) {
-        set_malformed_header(r, "DuplicateHeader", "Value1");
-        set_malformed_header(r, "DuplicateHeader", "Value2");
-
-    } else if (ngx_strncmp(value.data, "invalid-characters", value.len) == 0) {
-        set_malformed_header(r, "Invalid\xFF""Chars", "This header contains invalid characters");
-
-    // TODO handle missing colon MissingColon[:] Value
+    // Get the query string parameter "status"
+    if (ngx_http_arg(r, status_qs, sizeof(status_qs) - 1, &status_prm) != NGX_OK) {
+      r->headers_out.status = NGX_HTTP_OK; // Default status if parameter is not present
     } else {
-        return NGX_DECLINED;
+      // Convert the parameter to an integer
+      ngx_int_t status_code = ngx_atoi(status_prm.data, status_prm.len);
+      if (status_code == NGX_ERROR) {
+          status_code = NGX_HTTP_BAD_REQUEST;  // Use 400 Bad Request if conversion fails
+      }
+
+      // Set the response status code
+      r->headers_out.status = status_code;
     }
 
-    r->headers_out.status = NGX_HTTP_OK;
+    u_char malhdr_qs[] = "malformed-header";
+    ngx_str_t malhdr_prm;
+
+    // Get the query string parameter "malformed-header"
+    if (ngx_http_arg(r, malhdr_qs, sizeof(malhdr_qs) - 1, &malhdr_prm) == NGX_OK) {
+      // compare the querystring to all cases
+      if (ngx_strncmp(malhdr_prm.data, "spaces-in-header-name", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "Spaces In Header Name", "This header name contains spaces");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "trailing-whitespace", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "TrailingWhitespace ", "This header has trailing whitespace");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "header-injection", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "HeaderInjection\r\nInjected-Header", "This header contains an injection");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "non-printable-chars", malhdr_prm.len) == 0) {
+          char header_value[] = "NonPrintableChars\x01\x02";
+          set_malformed_header(r, "NonPrintableChars", header_value);
+
+      } else if (ngx_strncmp(malhdr_prm.data, "missing-value", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "MissingValue", "");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "multiple-colons", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "MultipleColons", "Value1: Value2");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "invalid-encoding", malhdr_prm.len) == 0) {
+          char header_value[] = "InvalidEncoding\xc3\x28";
+          set_malformed_header(r, "InvalidEncoding", header_value);
+
+      } else if (ngx_strncmp(malhdr_prm.data, "oversized-headers", malhdr_prm.len) == 0) {
+          char header_value[9000];
+          memset(header_value, 'X', 8999);
+          header_value[8999] = '\0';
+          set_malformed_header(r, "OversizedHeader", header_value);
+
+      } else if (ngx_strncmp(malhdr_prm.data, "duplicate-headers", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "DuplicateHeader", "Value1");
+          set_malformed_header(r, "DuplicateHeader", "Value2");
+
+      } else if (ngx_strncmp(malhdr_prm.data, "invalid-characters", malhdr_prm.len) == 0) {
+          set_malformed_header(r, "Invalid\xFF""Chars", "This header contains invalid characters");
+
+      // TODO handle missing colon MissingColon[:] Value
+      } else {
+          return NGX_DECLINED;
+      }
+    }
+
     r->headers_out.content_length_n = 0;
 
     ngx_http_send_header(r);
@@ -74,11 +88,11 @@ static ngx_int_t ngx_http_malformed_headers_handler(ngx_http_request_t *r) {
     return ngx_http_output_filter(r, &(ngx_chain_t){.buf = &(ngx_buf_t){.last_buf = 1}});
 }
 
-static char* ngx_http_malformed_headers(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
+static char* ngx_pathological_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
     ngx_http_core_loc_conf_t *clcf;
 
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = ngx_http_malformed_headers_handler;
+    clcf->handler = pathological_handler;
 
     return NGX_CONF_OK;
 }
@@ -90,7 +104,7 @@ ngx_module_t pathological_module = {
       {
         .name = ngx_string("pathological"),
         .type = NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS,
-        .set = ngx_http_malformed_headers,
+        .set = ngx_pathological_set,
       },
       ngx_null_command
     },
