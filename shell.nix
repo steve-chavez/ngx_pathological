@@ -6,24 +6,23 @@ with import (builtins.fetchTarball {
 mkShell {
   buildInputs =
     let
-      customModule = {
-        name = "ngx_pathological";
-        version = "0.1";
-        src = ./.;
-        meta = with lib; {
-          license = with licenses; [ mit ];
-        };
-      };
-      customNginx = nginx.override {
-        modules = [
-          customModule
-        ];
-      };
       nginxStart = writeShellScriptBin "ngx-start" ''
         nginx -p nginx -e stderr
       '';
+
+      nginxTest = writeShellScriptBin "ngx-test" ''
+        prove -I. -r t
+      '';
     in
-    [ customNginx nginxStart ];
+    [
+      (callPackage ./nix/customNginx.nix {})
+      nginxStart
+      nginxTest
+
+      (perl.withPackages(ps: [
+        (callPackage ./nix/perl-test-nginx.nix {})
+      ]))
+    ];
 
   shellHook = ''
     export HISTFILE=.history
