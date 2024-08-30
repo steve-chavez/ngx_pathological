@@ -5,19 +5,8 @@ with import (builtins.fetchTarball {
 }) {};
 mkShell {
   buildInputs =
-    let
-      nginxStart = writeShellScriptBin "ngx-start" ''
-        nginx -p nginx -e stderr
-      '';
-
-      nginxTest = writeShellScriptBin "ngx-test" ''
-        prove -I. -r t
-      '';
-    in
     [
-      (callPackage ./nix/customNginx.nix {})
-      nginxStart
-      nginxTest
+      openssl zlib pcre libxml2 libxslt perl
 
       (perl.withPackages(ps: [
         (callPackage ./nix/perl-test-nginx.nix {})

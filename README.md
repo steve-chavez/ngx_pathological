@@ -93,3 +93,17 @@ HTTP/1.1 200 OK
 ...
 MissingValue:
 ```
+
+## Development
+
+[Nix](https://nixos.org/download/) is used for providing dependencies.
+
+```bash
+nix-shell
+
+# to run the tests
+make test
+
+# to run a local nginx server on port 8080
+make start
+```

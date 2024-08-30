@@ -1,0 +1,4 @@
+[submodule "nginx"]
+	path = nginx
+	url = https://github.com/nginx/nginx
+	branch = release-1.27.0
