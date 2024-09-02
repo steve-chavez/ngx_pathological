@@ -15,6 +15,14 @@ static void set_malformed_header(ngx_http_request_t *r, const char *header_name,
     h->value.data = (u_char *) header_value;
 }
 
+static void final_handler(ngx_event_t *ev) {
+    ngx_http_request_t *r = ev->data;
+
+    ngx_http_send_header(r);
+    ngx_http_output_filter(r, &(ngx_chain_t){.buf = &(ngx_buf_t){.last_buf = 1}});
+    ngx_http_finalize_request(r, NGX_HTTP_OK);
+}
+
 static ngx_int_t pathological_handler(ngx_http_request_t *r) {
     u_char status_qs[] = "status";
     ngx_str_t status_prm;
@@ -81,11 +89,36 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
       }
     }
 
+    u_char delay_qs[] = "delay";
+    ngx_str_t delay_param;
+
+    // Get the query string parameter "delay"
+    if (ngx_http_arg(r, delay_qs, sizeof(delay_qs) - 1, &delay_param) != NGX_OK) {
+        delay_param.len = 0;
+        delay_param.data = (u_char *)"0";
+    }
+
+    // Convert the parameter to an integer
+    ngx_int_t delay = ngx_atoi(delay_param.data, delay_param.len);
+    if (delay == NGX_ERROR) {
+        delay = 0;
+    }
+
+    // no body
     r->headers_out.content_length_n = 0;
 
-    ngx_http_send_header(r);
+    ngx_event_t *ev = ngx_pcalloc(r->pool, sizeof(ngx_event_t));
+    if (ev == NULL) {
+      return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+    ev->data = r;
+    ev->handler = final_handler;
+    ev->log = r->connection->log;
 
-    return ngx_http_output_filter(r, &(ngx_chain_t){.buf = &(ngx_buf_t){.last_buf = 1}});
+    ngx_add_timer(ev, delay * 1000);
+
+    r->main->count++;  // Increase the main request counter
+    return NGX_DONE;
 }
 
 static char* ngx_pathological_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {

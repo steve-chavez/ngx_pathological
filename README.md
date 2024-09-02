@@ -94,6 +94,18 @@ HTTP/1.1 200 OK
 MissingValue:
 ```
 
+### Response Delay
+
+By setting an integer on the `delay` query string parameter, you can delay the response.
+
+```
+$ curl 'localhost:8080/pathological?delay=3' -i
+
+## After 3 seconds...
+
+HTTP/1.1 200 OK
+```
+
 ## Development
 
 [Nix](https://nixos.org/download/) is used for providing dependencies.
