@@ -4,6 +4,12 @@ An Nginx module that crafts bad HTTP responses.
 
 ## Installation
 
+Clone the repo and submodules:
+
+```
+git clone --recurse-submodules https://github.com/steve-chavez/ngx_pathological
+```
+
 Compile the module:
 
 ```
@@ -105,6 +111,17 @@ $ curl 'localhost:8080/pathological?delay=3' -i
 
 HTTP/1.1 200 OK
 ```
+
+### Disconnect Request
+
+By setting `true` on the `disconnect` query string parameter, you can immediately cause a disconnection.
+
+```
+$ curl "localhost:8080/pathological?disconnect=true"
+curl: (52) Empty reply from server
+```
+
+Setting it to `false` makes the request proceed. A different value will give an error.
 
 ## Development
 

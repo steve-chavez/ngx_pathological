@@ -1,6 +1,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <stdbool.h>
 
 static void set_malformed_header(ngx_http_request_t *r, const char *header_name, const char *header_value) {
     ngx_table_elt_t *h = ngx_list_push(&r->headers_out.headers);
@@ -24,6 +25,18 @@ static void final_handler(ngx_event_t *ev) {
 }
 
 static ngx_int_t pathological_handler(ngx_http_request_t *r) {
+    u_char disconnect_qs[] = "disconnect";
+    ngx_str_t disconnect_param;
+
+    if (ngx_http_arg(r, disconnect_qs, sizeof(disconnect_qs) - 1, &disconnect_param) != NGX_OK) {
+        disconnect_param = (ngx_str_t) ngx_string("false");
+    }
+
+    if (ngx_strncmp("true", disconnect_param.data, disconnect_param.len) == 0)
+      return NGX_HTTP_CLOSE;
+    else if (ngx_strncmp("false", disconnect_param.data, disconnect_param.len) != 0)
+      return NGX_DECLINED;
+
     u_char status_qs[] = "status";
     ngx_str_t status_prm;
 
@@ -104,9 +117,6 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
         delay = 0;
     }
 
-    // no body
-    r->headers_out.content_length_n = 0;
-
     ngx_event_t *ev = ngx_pcalloc(r->pool, sizeof(ngx_event_t));
     if (ev == NULL) {
       return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -118,6 +128,10 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
     ngx_add_timer(ev, delay * 1000);
 
     r->main->count++;  // Increase the main request counter
+
+    // no body
+    r->headers_out.content_length_n = 0;
+
     return NGX_DONE;
 }
 
