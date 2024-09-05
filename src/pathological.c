@@ -70,8 +70,7 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
           set_malformed_header(r, "HeaderInjection\r\nInjected-Header", "This header contains an injection");
 
       } else if (ngx_strncmp(malhdr_prm.data, "non-printable-chars", malhdr_prm.len) == 0) {
-          char header_value[] = "NonPrintableChars\x01\x02";
-          set_malformed_header(r, "NonPrintableChars", header_value);
+          set_malformed_header(r, "NonPrintableChars", "NonPrintableChars\x01\x02");
 
       } else if (ngx_strncmp(malhdr_prm.data, "missing-value", malhdr_prm.len) == 0) {
           set_malformed_header(r, "MissingValue", "");
@@ -80,14 +79,11 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
           set_malformed_header(r, "MultipleColons", "Value1: Value2");
 
       } else if (ngx_strncmp(malhdr_prm.data, "invalid-encoding", malhdr_prm.len) == 0) {
-          char header_value[] = "InvalidEncoding\xc3\x28";
-          set_malformed_header(r, "InvalidEncoding", header_value);
+          set_malformed_header(r, "InvalidEncoding", "InvalidEncoding\xc3\x28");
 
       } else if (ngx_strncmp(malhdr_prm.data, "oversized-headers", malhdr_prm.len) == 0) {
-          char header_value[9000];
-          memset(header_value, 'X', 8999);
-          header_value[8999] = '\0';
-          set_malformed_header(r, "OversizedHeader", header_value);
+          // declaring it static to avoid corrupt stack problem
+          set_malformed_header(r, "OversizedHeader", (static char[]){ [0 ... 8998] = 'X', [8999] = '\0'});
 
       } else if (ngx_strncmp(malhdr_prm.data, "duplicate-headers", malhdr_prm.len) == 0) {
           set_malformed_header(r, "DuplicateHeader", "Value1");
