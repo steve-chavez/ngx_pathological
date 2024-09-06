@@ -83,8 +83,8 @@ static ngx_int_t pathological_handler(ngx_http_request_t *r) {
 
       } else if (ngx_strncmp(malhdr_prm.data, "oversized-headers", malhdr_prm.len) == 0) {
           // declaring it static to avoid corrupt stack problem
-          set_malformed_header(r, "OversizedHeader", (static char[]){ [0 ... 8998] = 'X', [8999] = '\0'});
-
+          static char value[9000] = { [0 ... 8998] = 'X', [8999] = '\0'};
+          set_malformed_header(r, "OversizedHeader", value);
       } else if (ngx_strncmp(malhdr_prm.data, "duplicate-headers", malhdr_prm.len) == 0) {
           set_malformed_header(r, "DuplicateHeader", "Value1");
           set_malformed_header(r, "DuplicateHeader", "Value2");
