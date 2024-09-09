@@ -1,29 +1,54 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use Test::More;
+use Socket qw/ CRLF /;
+
+BEGIN { use FindBin; chdir($FindBin::Bin); }
+
 use lib 'lib';
-use Test::Nginx::Socket;
+use Test::Nginx;
 
-plan tests => 3;
+select STDERR; $| = 1;
+select STDOUT; $| = 1;
 
-run_tests();
+my $t = Test::Nginx->new()->has(qw/http rewrite/)->plan(3);
 
-__DATA__
+$t->write_file_expand('nginx.conf', <<'EOF');
 
-=== TEST 1: status
---- config
-    location /pathological {
-        pathological;
+%%TEST_GLOBALS%%
+
+daemon off;
+
+events {
+}
+
+http {
+    %%TEST_GLOBALS_HTTP%%
+
+    server {
+        listen       127.0.0.1:8080;
+        server_name  localhost;
+
+        location /pathological {
+            pathological;
+        }
     }
+}
 
---- request
-    GET /pathological?status=999
---- error_code: 999
+EOF
 
---- request
-    GET /pathological?status=201
---- error_code: 201
+$t->run();
 
+# status
 
-=== TEST 2: headers
---- request
-    GET /pathological?malformed-header=missing-value
---- response_headers
-MissingValue:
+like(http_get('/pathological?status=202'), qr/202 Accepted/ms, 'standard status');
+like(http_get('/pathological?status=999'), qr/999/ms, 'custom status');
+
+# headers
+
+my $response = http_get('/pathological?malformed-header=missing-value');
+my ($missing_value) = $response =~ m{^MissingValue:\s*$}m;
+ok(defined $missing_value, "MissingValue is present in the response");

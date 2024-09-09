@@ -7,10 +7,6 @@ mkShell {
   buildInputs =
     [
       openssl zlib pcre libxml2 libxslt perl
-
-      (perl.withPackages(ps: [
-        (callPackage ./nix/perl-test-nginx.nix {})
-      ]))
     ];
 
   shellHook = ''

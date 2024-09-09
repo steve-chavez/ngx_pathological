@@ -1,5 +1,7 @@
 .ONESHELL: # enables `cd` inside a target to work normally https://stackoverflow.com/a/30590240/4692662
 
+current_dir = $(realpath .)
+
 build: nginx/objs/nginx nginx/objs/pathological_module.so
 
 nginx/objs/nginx:
@@ -18,4 +20,4 @@ clean:
 	rm -rf nginx/objs
 
 test: nginx/objs/nginx nginx/objs/pathological_module.so
-	TEST_NGINX_LOAD_MODULES=../../nginx/objs/pathological_module.so TEST_NGINX_BINARY=./nginx/objs/nginx prove -I. -r t
+	TEST_NGINX_GLOBALS="load_module $(current_dir)/nginx/objs/pathological_module.so;" TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t
