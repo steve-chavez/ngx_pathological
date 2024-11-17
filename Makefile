@@ -2,22 +2,30 @@
 
 current_dir = $(realpath .)
 
-build: nginx/objs/nginx nginx/objs/pathological_module.so
+module_name=pathological_module
 
-nginx/objs/nginx:
+module_src=src/pathological.c
+
+build: nginx/objs/nginx nginx/objs/$(module_name).so
+
+nginx/objs/nginx: config
 	cd nginx
 	./auto/configure --with-compat --add-dynamic-module=..
 	make
 
-nginx/objs/pathological_module.so: src/pathological.c
+config: config.in
+	sed "s/@MODULE_NAME@/$(module_name)/g" config.in > config
+	sed -i 's~@MODULE_SRC@~$(addprefix $$ngx_addon_dir/,$(module_src))~g' config
+
+nginx/objs/$(module_name).so: $(module_src)
 	cd nginx
 	make modules
 
-start: nginx/objs/nginx nginx/objs/pathological_module.so
+start: nginx/objs/nginx nginx/objs/$(module_name).so
 	./nginx/objs/nginx -p nix -e stderr
 
 clean:
-	rm -rf nginx/objs
+	rm -rf nginx/objs && rm config
 
-test: nginx/objs/nginx nginx/objs/pathological_module.so
-	TEST_NGINX_GLOBALS="load_module $(current_dir)/nginx/objs/pathological_module.so;" TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t
+test: nginx/objs/nginx nginx/objs/$(module_name).so
+	TEST_NGINX_GLOBALS="load_module $(current_dir)/nginx/objs/$(module_name).so;" TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t

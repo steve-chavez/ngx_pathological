@@ -1,0 +1,14 @@
+ngx_addon_name=@MODULE_NAME@
+
+if test -n "$ngx_module_link"; then
+    # The New Way
+    ngx_module_type=HTTP
+    ngx_module_name=$ngx_addon_name
+    ngx_module_srcs="@MODULE_SRC@"
+
+    . auto/module
+else
+    # The Old Way
+    HTTP_MODULES="$HTTP_MODULES $ngx_addon_name"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS @MODULE_SRC@"
+fi
