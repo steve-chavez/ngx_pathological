@@ -4,7 +4,7 @@ current_dir = $(realpath .)
 
 module_name=pathological_module
 
-module_src=src/pathological.c
+module_src=$(wildcard src/*.c)
 
 load_module_ngx_directive="load_module $(current_dir)/nginx/objs/$(module_name).so;"
 
