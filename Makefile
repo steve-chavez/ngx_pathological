@@ -6,6 +6,8 @@ module_name=pathological_module
 
 module_src=src/pathological.c
 
+load_module_ngx_directive="load_module $(current_dir)/nginx/objs/$(module_name).so;"
+
 build: nginx/objs/nginx nginx/objs/$(module_name).so
 
 nginx/objs/nginx: config
@@ -22,10 +24,10 @@ nginx/objs/$(module_name).so: $(module_src)
 	make modules
 
 start: nginx/objs/nginx nginx/objs/$(module_name).so
-	./nginx/objs/nginx -p nix -e stderr
+	./nginx/objs/nginx -g $(load_module_ngx_directive) -p nix/nginx-local -e stderr
+
+test: nginx/objs/nginx nginx/objs/$(module_name).so
+	TEST_NGINX_GLOBALS=$(load_module_ngx_directive) TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t
 
 clean:
 	rm -rf nginx/objs && rm config
-
-test: nginx/objs/nginx nginx/objs/$(module_name).so
-	TEST_NGINX_GLOBALS="load_module $(current_dir)/nginx/objs/$(module_name).so;" TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t
