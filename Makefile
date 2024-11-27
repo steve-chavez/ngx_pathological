@@ -12,7 +12,7 @@ build: nginx/objs/nginx nginx/objs/$(module_name).so
 
 nginx/objs/nginx: config
 	cd nginx
-	./auto/configure --with-compat --add-dynamic-module=..
+	./auto/configure --with-debug --with-stream --with-compat --add-dynamic-module=..
 	make
 
 config: config.in

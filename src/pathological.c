@@ -1,163 +1,166 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
-#include <ngx_http.h>
-#include <stdbool.h>
+#include <ngx_stream.h>
 
-static void set_malformed_header(ngx_http_request_t *r, const char *header_name, const char *header_value) {
-    ngx_table_elt_t *h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return;
+// Configuration structure
+typedef struct {
+    ngx_msec_t delay; // delay in milliseconds
+} ngx_stream_post_handshake_delay_srv_conf_t;
+
+// Context structure
+typedef struct {
+    ngx_event_t delay_event;
+    ngx_uint_t delayed; // Flag indicating whether the delay has been applied
+} ngx_stream_post_handshake_delay_ctx_t;
+
+// Function prototypes
+static void *ngx_stream_post_handshake_delay_create_srv_conf(ngx_conf_t *cf);
+static char *ngx_stream_post_handshake_delay_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child);
+static ngx_int_t ngx_stream_post_handshake_delay_handler(ngx_stream_session_t *s);
+static void ngx_stream_post_handshake_delay_timeout_handler(ngx_event_t *ev);
+static ngx_int_t ngx_stream_post_handshake_delay_init(ngx_conf_t *cf);
+
+// Module directives
+static ngx_command_t ngx_stream_post_handshake_delay_commands[] = {
+    {
+        ngx_string("post_handshake_delay"),
+        NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1,
+        ngx_conf_set_msec_slot,
+        NGX_STREAM_SRV_CONF_OFFSET,
+        offsetof(ngx_stream_post_handshake_delay_srv_conf_t, delay),
+        NULL
+    },
+    ngx_null_command
+};
+
+// Module context
+static ngx_stream_module_t ngx_stream_post_handshake_delay_module_ctx = {
+    NULL,                                      // preconfiguration
+    ngx_stream_post_handshake_delay_init,      // postconfiguration
+    NULL,                                      // create main configuration
+    NULL,                                      // init main configuration
+    ngx_stream_post_handshake_delay_create_srv_conf,  // create server configuration
+    ngx_stream_post_handshake_delay_merge_srv_conf    // merge server configuration
+};
+
+// Module definition
+ngx_module_t pathological_module = {
+    NGX_MODULE_V1,
+    &ngx_stream_post_handshake_delay_module_ctx,      // module context
+    ngx_stream_post_handshake_delay_commands,         // module directives
+    NGX_STREAM_MODULE,                                // module type
+    NULL,                                             // init master
+    NULL,                                             // init module
+    NULL,                                             // init process
+    NULL,                                             // init thread
+    NULL,                                             // exit thread
+    NULL,                                             // exit process
+    NULL,                                             // exit master
+    NGX_MODULE_V1_PADDING
+};
+
+// Create server configuration
+static void *
+ngx_stream_post_handshake_delay_create_srv_conf(ngx_conf_t *cf)
+{
+    ngx_stream_post_handshake_delay_srv_conf_t *conf;
+
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_stream_post_handshake_delay_srv_conf_t));
+    if (conf == NULL) {
+        return NULL;
     }
 
-    h->hash = 1;
-    h->key.len = strlen(header_name);
-    h->key.data = (u_char *) header_name;
-    h->value.len = strlen(header_value);
-    h->value.data = (u_char *) header_value;
+    conf->delay = NGX_CONF_UNSET_MSEC;
+
+    return conf;
 }
 
-static void final_handler(ngx_event_t *ev) {
-    ngx_http_request_t *r = ev->data;
+// Merge server configuration
+static char *
+ngx_stream_post_handshake_delay_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
+{
+    ngx_stream_post_handshake_delay_srv_conf_t *prev = parent;
+    ngx_stream_post_handshake_delay_srv_conf_t *conf = child;
 
-    ngx_http_send_header(r);
-    ngx_http_output_filter(r, &(ngx_chain_t){.buf = &(ngx_buf_t){.last_buf = 1}});
-    ngx_http_finalize_request(r, NGX_HTTP_OK);
-}
-
-static ngx_int_t pathological_handler(ngx_http_request_t *r) {
-    u_char disconnect_qs[] = "disconnect";
-    ngx_str_t disconnect_param;
-
-    if (ngx_http_arg(r, disconnect_qs, sizeof(disconnect_qs) - 1, &disconnect_param) != NGX_OK) {
-        disconnect_param = (ngx_str_t) ngx_string("false");
-    }
-
-    if (ngx_strncmp("true", disconnect_param.data, disconnect_param.len) == 0)
-      return NGX_HTTP_CLOSE;
-    else if (ngx_strncmp("false", disconnect_param.data, disconnect_param.len) != 0)
-      return NGX_DECLINED;
-
-    u_char status_qs[] = "status";
-    ngx_str_t status_prm;
-
-    // Get the query string parameter "status"
-    if (ngx_http_arg(r, status_qs, sizeof(status_qs) - 1, &status_prm) != NGX_OK) {
-      r->headers_out.status = NGX_HTTP_OK; // Default status if parameter is not present
-    } else {
-      // Convert the parameter to an integer
-      ngx_int_t status_code = ngx_atoi(status_prm.data, status_prm.len);
-      if (status_code == NGX_ERROR) {
-          status_code = NGX_HTTP_BAD_REQUEST;  // Use 400 Bad Request if conversion fails
-      }
-
-      // Set the response status code
-      r->headers_out.status = status_code;
-    }
-
-    u_char malhdr_qs[] = "malformed-header";
-    ngx_str_t malhdr_prm;
-
-    // Get the query string parameter "malformed-header"
-    if (ngx_http_arg(r, malhdr_qs, sizeof(malhdr_qs) - 1, &malhdr_prm) == NGX_OK) {
-      // compare the querystring to all cases
-      if (ngx_strncmp(malhdr_prm.data, "spaces-in-header-name", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "Spaces In Header Name", "This header name contains spaces");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "trailing-whitespace", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "TrailingWhitespace ", "This header has trailing whitespace");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "header-injection", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "HeaderInjection\r\nInjected-Header", "This header contains an injection");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "non-printable-chars", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "NonPrintableChars", "NonPrintableChars\x01\x02");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "missing-value", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "MissingValue", "");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "multiple-colons", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "MultipleColons", "Value1: Value2");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "invalid-encoding", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "InvalidEncoding", "InvalidEncoding\xc3\x28");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "oversized-headers", malhdr_prm.len) == 0) {
-          // declaring it static to avoid corrupt stack problem
-          static char value[9000] = { [0 ... 8998] = 'X', [8999] = '\0'};
-          set_malformed_header(r, "OversizedHeader", value);
-      } else if (ngx_strncmp(malhdr_prm.data, "duplicate-headers", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "DuplicateHeader", "Value1");
-          set_malformed_header(r, "DuplicateHeader", "Value2");
-
-      } else if (ngx_strncmp(malhdr_prm.data, "invalid-characters", malhdr_prm.len) == 0) {
-          set_malformed_header(r, "Invalid\xFF""Chars", "This header contains invalid characters");
-
-      // TODO handle missing colon MissingColon[:] Value
-      } else {
-          return NGX_DECLINED;
-      }
-    }
-
-    u_char delay_qs[] = "delay";
-    ngx_str_t delay_param;
-
-    // Get the query string parameter "delay"
-    if (ngx_http_arg(r, delay_qs, sizeof(delay_qs) - 1, &delay_param) != NGX_OK) {
-        delay_param.len = 0;
-        delay_param.data = (u_char *)"0";
-    }
-
-    // Convert the parameter to an integer
-    ngx_int_t delay = ngx_atoi(delay_param.data, delay_param.len);
-    if (delay == NGX_ERROR) {
-        delay = 0;
-    }
-
-    ngx_event_t *ev = ngx_pcalloc(r->pool, sizeof(ngx_event_t));
-    if (ev == NULL) {
-      return NGX_HTTP_INTERNAL_SERVER_ERROR;
-    }
-    ev->data = r;
-    ev->handler = final_handler;
-    ev->log = r->connection->log;
-
-    ngx_add_timer(ev, delay * 1000);
-
-    r->main->count++;  // Increase the main request counter
-
-    // no body
-    r->headers_out.content_length_n = 0;
-
-    return NGX_DONE;
-}
-
-static char* ngx_pathological_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf) {
-    ngx_http_core_loc_conf_t *clcf;
-
-    clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
-    clcf->handler = pathological_handler;
+    ngx_conf_merge_msec_value(conf->delay, prev->delay, 0);
 
     return NGX_CONF_OK;
 }
 
-ngx_module_t pathological_module = {
-    NGX_MODULE_V1,
-    &(ngx_http_module_t){0},
-   (ngx_command_t[]){
-      {
-        .name = ngx_string("pathological"),
-        .type = NGX_HTTP_LOC_CONF | NGX_CONF_NOARGS,
-        .set = ngx_pathological_set,
-      },
-      ngx_null_command
-    },
-    NGX_HTTP_MODULE,                        /* module type */
-    NULL,                                   /* init master */
-    NULL,                                   /* init module */
-    NULL,                                   /* init process */
-    NULL,                                   /* init thread */
-    NULL,                                   /* exit thread */
-    NULL,                                   /* exit process */
-    NULL,                                   /* exit master */
-    NGX_MODULE_V1_PADDING
-};
+// Handler function
+static ngx_int_t
+ngx_stream_post_handshake_delay_handler(ngx_stream_session_t *s)
+{
+    ngx_stream_post_handshake_delay_srv_conf_t *conf;
+    conf = ngx_stream_get_module_srv_conf(s, pathological_module);
+
+    if (conf->delay > 0) {
+        // Get or create context
+        ngx_stream_post_handshake_delay_ctx_t *ctx;
+        ctx = ngx_stream_get_module_ctx(s, pathological_module);
+
+        if (ctx == NULL) {
+            // Allocate and set context
+            ctx = ngx_pcalloc(s->connection->pool, sizeof(ngx_stream_post_handshake_delay_ctx_t));
+            if (ctx == NULL) {
+                return NGX_ERROR;
+            }
+
+            ngx_stream_set_ctx(s, ctx, pathological_module);
+        }
+
+        if (!ctx->delayed) {
+            ngx_log_debug1(NGX_LOG_DEBUG_STREAM, s->connection->log, 0,
+                           "post_handshake_delay: delaying for %M ms", conf->delay);
+
+            ctx->delayed = 1;
+
+            // Initialize the delay event
+            ngx_event_t *ev = &ctx->delay_event;
+            ev->handler = ngx_stream_post_handshake_delay_timeout_handler;
+            ev->data = s;
+            ev->log = s->connection->log;
+            ev->cancelable = 1;
+
+            // Add timer
+            ngx_add_timer(ev, conf->delay);
+
+            // Suspend processing
+            return NGX_DONE;
+        }
+    }
+
+    return NGX_DECLINED; // Continue processing
+}
+
+// Timeout handler
+static void
+ngx_stream_post_handshake_delay_timeout_handler(ngx_event_t *ev)
+{
+    ngx_stream_session_t *s = ev->data;
+    ngx_connection_t *c = s->connection;
+
+    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "post_handshake_delay: delay expired, resuming session");
+
+    // Continue processing the session
+    ngx_stream_core_run_phases(s);
+}
+
+// Module initialization function
+static ngx_int_t
+ngx_stream_post_handshake_delay_init(ngx_conf_t *cf)
+{
+    ngx_stream_core_main_conf_t  *cmcf;
+    ngx_stream_handler_pt        *h;
+
+    cmcf = ngx_stream_conf_get_module_main_conf(cf, ngx_stream_core_module);
+
+    h = ngx_array_push(&cmcf->phases[NGX_STREAM_PREREAD_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+
+    *h = ngx_stream_post_handshake_delay_handler;
+
+    return NGX_OK;
+}
