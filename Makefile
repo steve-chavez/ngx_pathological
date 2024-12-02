@@ -17,7 +17,7 @@ build: nginx/objs/nginx $(module_dynamic_lib)
 nginx/objs/nginx: config
 	cd nginx
 	./auto/configure --with-compat --add-dynamic-module=..
-	make
+	make CFLAGS='-D NGX_MODULE_NAME=$(NGX_MODULE_NAME)'
 
 config: config.in
 	sed "s/@NGX_MODULE_NAME@/$(NGX_MODULE_NAME)/g" config.in > config

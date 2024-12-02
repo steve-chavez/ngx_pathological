@@ -140,7 +140,7 @@ static char* ngx_pathological_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf
     return NGX_CONF_OK;
 }
 
-ngx_module_t pathological_module = {
+ngx_module_t NGX_MODULE_NAME = {
     NGX_MODULE_V1,
     &(ngx_http_module_t){0},
    (ngx_command_t[]){
