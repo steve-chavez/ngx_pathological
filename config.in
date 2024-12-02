@@ -1,4 +1,7 @@
-ngx_addon_name=@MODULE_NAME@
+ngx_addon_name=@NGX_MODULE_NAME@
+
+ngx_module_libs=@NGX_MODULE_LIBS@
+ngx_module_incs=@NGX_MODULE_INCS@
 
 if test -n "$ngx_module_link"; then
     # The New Way

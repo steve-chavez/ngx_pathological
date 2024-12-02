@@ -1,14 +1,18 @@
 .ONESHELL: # enables `cd` inside a target to work normally https://stackoverflow.com/a/30590240/4692662
 
-current_dir = $(realpath .)
+NGX_MODULE_NAME=pathological_module
 
-module_name=pathological_module
+NGX_MODULE_LIBS=#$(shell pkg-config --libs-only-l <your_lib>)
 
-module_src=$(wildcard src/*.c)
+NGX_MODULE_INCS=#$(shell pkg-config --cflags-only-I <your_lib>)
 
-load_module_ngx_directive="load_module $(current_dir)/nginx/objs/$(module_name).so;"
+MODULE_SRC=$(wildcard src/*.c)
 
-build: nginx/objs/nginx nginx/objs/$(module_name).so
+module_dynamic_lib=nginx/objs/$(NGX_MODULE_NAME).so
+
+load_module_ngx_directive="load_module $(realpath .)/$(module_dynamic_lib);"
+
+build: nginx/objs/nginx $(module_dynamic_lib)
 
 nginx/objs/nginx: config
 	cd nginx
@@ -16,17 +20,19 @@ nginx/objs/nginx: config
 	make
 
 config: config.in
-	sed "s/@MODULE_NAME@/$(module_name)/g" config.in > config
-	sed -i 's~@MODULE_SRC@~$(addprefix $$ngx_addon_dir/,$(module_src))~g' config
+	sed "s/@NGX_MODULE_NAME@/$(NGX_MODULE_NAME)/g" config.in > config
+	sed -i 's~@MODULE_SRC@~$(addprefix $$ngx_addon_dir/,$(MODULE_SRC))~g' config
+	sed -i 's~@NGX_MODULE_LIBS@~$(NGX_MODULE_LIBS)~g' config
+	sed -i 's~@NGX_MODULE_INCS@~$(NGX_MODULE_INCS)~g' config
 
-nginx/objs/$(module_name).so: $(module_src)
+nginx/objs/$(NGX_MODULE_NAME).so: $(MODULE_SRC)
 	cd nginx
 	make modules
 
-start: nginx/objs/nginx nginx/objs/$(module_name).so
+start: nginx/objs/nginx nginx/objs/$(NGX_MODULE_NAME).so
 	./nginx/objs/nginx -g $(load_module_ngx_directive) -p nix/nginx-local -e stderr
 
-test: nginx/objs/nginx nginx/objs/$(module_name).so
+test: nginx/objs/nginx nginx/objs/$(NGX_MODULE_NAME).so
 	TEST_NGINX_GLOBALS=$(load_module_ngx_directive) TEST_NGINX_BINARY=../nginx/objs/nginx prove -I. -r t
 
 clean:
